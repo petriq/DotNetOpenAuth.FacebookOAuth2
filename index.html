@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="DotNetOpenAuth.FacebookOAuth2 : DotNetOpenAuth OAuth2 Client for Facebook" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>DotNetOpenAuth.FacebookOAuth2</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/mj1856/DotNetOpenAuth.FacebookOAuth2">View on GitHub</a>
+
+          <h1 id="project_title">DotNetOpenAuth.FacebookOAuth2</h1>
+          <h2 id="project_tagline">DotNetOpenAuth OAuth2 Client for Facebook</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/mj1856/DotNetOpenAuth.FacebookOAuth2/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/mj1856/DotNetOpenAuth.FacebookOAuth2/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>
+<a name="dotnetopenauth-oauth2-client-for-facebook" class="anchor" href="#dotnetopenauth-oauth2-client-for-facebook"><span class="octicon octicon-link"></span></a>DotNetOpenAuth OAuth2 Client for Facebook</h1>
+
+<p>This is a slightly improved implementation over the default Facebook client that ships with DNOA as used in MVC4 (VS2012).
+It keeps the provider and sid off of the redirect uri, and puts them in the state parameter where they belong.</p>
+
+<p>It also lets you customize the scopes, in case you want access to other Facebook data.  And it doesn't manipulate
+the response fields - so you get back exactly what facebook provided.</p>
+
+<p>Facebook Reference: <a href="http://developers.facebook.com/docs/howtos/login/server-side-login/">http://developers.facebook.com/docs/howtos/login/server-side-login/</a></p>
+
+<h2>
+<a name="setup" class="anchor" href="#setup"><span class="octicon octicon-link"></span></a>Setup</h2>
+
+<ol>
+<li><p>Setup your Facebook App using the <a href="https://developers.facebook.com/apps">Facebook developer apps site</a>.
+Detailed instructions <a href="http://ben.onfabrik.com/posts/oauth-providers#facebook">here</a></p></li>
+<li><p>Install this library from <a href="https://nuget.org/packages/DotNetOpenAuth.FacebookOAuth2">NuGet</a>, or compile from source and reference.</p></li>
+<li>
+<p>Register the client instead of the existing Facebook OpenId client.</p>
+
+<pre><code>var client = new FacebookOAuth2Client("yourAppId", "yourAppSecret");
+var extraData = new Dictionary&lt;string, object&gt;();
+OAuthWebSecurity.RegisterClient(client, "Facebook", extraData);
+</code></pre>
+</li>
+</ol><h2>
+<a name="usage" class="anchor" href="#usage"><span class="octicon octicon-link"></span></a>Usage</h2>
+
+<p>Just like any other <code>OAuthWebSecurity</code> client, except you need one extra hook:</p>
+
+<pre><code>    // add this line
+    FacebookOAuth2Client.RewriteRequest();
+
+    // it belongs right before your existing call to
+    OAuthWebSecurity.VerifyAuthentication(....)
+</code></pre>
+
+<p>This is needed because Facebook requires that any extra querystring parameters for the
+redirect be packed into a single parameter called <code>state</code>.  Since <code>OAuthWebSecurity</code> needs
+two parameters, <code>__provider__</code> and <code>__sid__</code> - we have to rewrite the url.</p>
+
+<p><strong>Note:</strong> The <code>RewriteRequest</code> method will unpack the <code>state</code> parameter and place its contents back into the regular querystring.
+So if you are looking for a state value such as <code>ReturnUrl</code>, you will find it has been moved to <code>Request.QueryString["ReturnUrl"]</code>.</p>
+
+<h2>
+<a name="disclaimer" class="anchor" href="#disclaimer"><span class="octicon octicon-link"></span></a>Disclaimer</h2>
+
+<p>I don't work for Facebook, Microsoft, or DNOA.  This is released under the <a href="LICENCE.txt">MIT</a> licence.  Do what you want with it.</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">DotNetOpenAuth.FacebookOAuth2 maintained by <a href="https://github.com/mj1856">mj1856</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
