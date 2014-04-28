@@ -7,7 +7,8 @@ It keeps the provider and sid off of the redirect uri, and puts them in the stat
 It also lets you customize the scopes, in case you want access to other Facebook data.  And it doesn't manipulate
 the response fields - so you get back exactly what facebook provided.
 
-Facebook Reference: http://developers.facebook.com/docs/howtos/login/server-side-login/
+**IMPORTANT** - If you are using ASP.Net MVC 5, this package is not applicable.  You should use [Microsoft.Owin.Security.Facebook](https://www.nuget.org/packages/Microsoft.Owin.Security.Google) instead.  (It also ships with the MVC 5 starter templates in VS 2013.)  See also [the tutorial here](http://www.asp.net/mvc/tutorials/mvc-5/create-an-aspnet-mvc-5-app-with-facebook-and-google-oauth2-and-openid-sign-on).
+
 
 ## Setup
 
