@@ -16,22 +16,31 @@ namespace DotNetOpenAuth.FacebookOAuth2
     /// </summary>
     public class FacebookOAuth2Client : OAuth2Client
     {
-        #region Constants and Fields
+        #region Constants
 
         /// <summary>
         /// The authorization endpoint.
         /// </summary>
-        private const string AuthorizationEndpoint = "https://www.facebook.com/dialog/oauth";
+        private const string AuthorizationEndpoint = "https://www.facebook.com/{0}dialog/oauth";
 
         /// <summary>
         /// The token endpoint.
         /// </summary>
-        private const string TokenEndpoint = "https://graph.facebook.com/oauth/access_token";
+        private const string TokenEndpoint = "https://graph.facebook.com/{0}oauth/access_token";
 
         /// <summary>
         /// The user info endpoint.
         /// </summary>
-        private const string UserInfoEndpoint = "https://graph.facebook.com/me";
+        private const string UserInfoEndpoint = "https://graph.facebook.com/{0}me";
+
+        /// <summary>
+        /// The debug access token endpoint.
+        /// </summary>
+        private const string DEBUG_ACCESS_TOKEN_ENDPOINT = "https://graph.facebook.com/{0}debug_token";
+
+        #endregion
+
+        #region Fields and properties
 
         /// <summary>
         /// The app id.
@@ -44,11 +53,30 @@ namespace DotNetOpenAuth.FacebookOAuth2
         private readonly string _appSecret;
 
         /// <summary>
+        /// Facebook graph API version.
+        /// </summary>
+        private string _apiVersion = "v2.2";
+
+        /// <summary>
+        /// Gets or setts current API version.
+        /// </summary>
+        public string ApiVersion
+        {
+            get { return _apiVersion; }
+            set { _apiVersion = value; }
+        } 
+
+
+        /// <summary>
         /// The requested scopes.
         /// </summary>
         private readonly string[] _requestedScopes;
 
         #endregion
+
+
+
+        #region Constuctors
 
         /// <summary>
         /// Creates a new Facebook OAuth2 client, requesting the default "email" scope.
@@ -56,7 +84,7 @@ namespace DotNetOpenAuth.FacebookOAuth2
         /// <param name="appId">The Facebook App Id</param>
         /// <param name="appSecret">The Facebook App Secret</param>
         public FacebookOAuth2Client(string appId, string appSecret)
-            : this(appId, appSecret, new[] { "email" }) { }
+            : this(appId, appSecret, "email") { }
 
         /// <summary>
         /// Creates a new Facebook OAuth2 client.
@@ -84,11 +112,16 @@ namespace DotNetOpenAuth.FacebookOAuth2
             _requestedScopes = requestedScopes;
         }
 
+        #endregion
+
+
         protected override Uri GetServiceLoginUrl(Uri returnUrl)
         {
             var state = string.IsNullOrEmpty(returnUrl.Query) ? string.Empty : returnUrl.Query.Substring(1);
 
-            return BuildUri(AuthorizationEndpoint, new NameValueCollection
+            string baseUrl = string.Format(AuthorizationEndpoint, string.IsNullOrWhiteSpace(_apiVersion) ? string.Empty : _apiVersion + "/");
+
+            return BuildUri(baseUrl, new NameValueCollection
                 {
                     { "client_id", _appId },
                     { "scope", string.Join(" ", _requestedScopes) },
@@ -99,25 +132,27 @@ namespace DotNetOpenAuth.FacebookOAuth2
 
         protected override IDictionary<string, string> GetUserData(string accessToken)
         {
-            var uri = BuildUri(UserInfoEndpoint, new NameValueCollection { { "access_token", accessToken } });
-
+            var uri = BuildUri(UserInfoEndpoint);
             var webRequest = (HttpWebRequest) WebRequest.Create(uri);
+            webRequest.Headers.Add(HttpRequestHeader.Authorization, "Bearer " + accessToken);
 
             using (var webResponse = webRequest.GetResponse())
-            using (var stream = webResponse.GetResponseStream())
             {
-                if (stream == null)
-                    return null;
-
-                using (var textReader = new StreamReader(stream))
+                using (var stream = webResponse.GetResponseStream())
                 {
-                    var json = textReader.ReadToEnd();
-                    var extraData = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
-                    var data = extraData.ToDictionary(x => x.Key, x => x.Value.ToString());
+                    if (stream == null)
+                        return null;
 
-                    data.Add("picture", string.Format("https://graph.facebook.com/{0}/picture", data["id"]));
+                    using (var textReader = new StreamReader(stream))
+                    {
+                        var json = textReader.ReadToEnd();
+                        var extraData = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
+                        var data = extraData.ToDictionary(x => x.Key, x => x.Value.ToString());
 
-                    return data;
+                        data.Add("picture", string.Format("https://graph.facebook.com/{0}/picture", data["id"]));
+
+                        return data;
+                    }
                 }
             }
         }
@@ -150,12 +185,22 @@ namespace DotNetOpenAuth.FacebookOAuth2
             }
         }
 
-        private static Uri BuildUri(string baseUri, NameValueCollection queryParameters)
+        private Uri BuildUri(string baseUri, NameValueCollection queryParameters = null)
         {
-            var keyValuePairs = queryParameters.AllKeys.Select(k => HttpUtility.UrlEncode(k) + "=" + HttpUtility.UrlEncode(queryParameters[k]));
-            var qs = String.Join("&", keyValuePairs);
+            UriBuilder builder;
 
-            var builder = new UriBuilder(baseUri) { Query = qs };
+            baseUri = string.Format(baseUri, string.IsNullOrWhiteSpace(_apiVersion) ? string.Empty : _apiVersion + "/");
+
+            if (queryParameters != null)
+            {
+                var keyValuePairs = queryParameters.AllKeys.Select(k => HttpUtility.UrlEncode(k) + "=" + HttpUtility.UrlEncode(queryParameters[k]));
+                var qs = String.Join("&", keyValuePairs);
+
+                builder = new UriBuilder(baseUri) { Query = qs };
+            }
+            else {
+                builder = new UriBuilder(baseUri);
+            }
             return builder.Uri;
         }
 
@@ -176,6 +221,87 @@ namespace DotNetOpenAuth.FacebookOAuth2
             q.Remove("state");
 
             ctx.RewritePath(ctx.Request.Path + "?" + q);
+        }
+
+        /// <summary>
+        /// Verifies whether provided access token is really issued for specified application.
+        /// </summary>
+        /// <param name="accessToken">Access token.</param>
+        /// <returns></returns>
+        /// <exception cref="System.Exception">Throws exception when dynamic data object does not contain app_id or is_valid attributes.</exception>
+        public bool VerifyAccessToken(string accessToken) {
+            bool ret = false;
+
+            var uri = BuildUri(DEBUG_ACCESS_TOKEN_ENDPOINT, new NameValueCollection
+                {
+                    { "input_token", accessToken },
+                });
+
+            var webRequest = (HttpWebRequest)WebRequest.Create(uri);
+            webRequest.Headers.Add(HttpRequestHeader.Authorization, string.Format("Bearer {0}|{1}", _appId, _appSecret));
+
+            try
+            {
+                using (var webResponse = (HttpWebResponse)webRequest.GetResponse())
+                {
+                    var responseStream = webResponse.GetResponseStream();
+                    if (responseStream != null)
+                    {
+                        using (var reader = new StreamReader(responseStream))
+                        {
+                            var json = reader.ReadToEnd();
+                            dynamic responseData = JsonConvert.DeserializeObject<dynamic>(json);
+
+                            try
+                            {
+                                if (responseData.data.app_id == _appId && responseData.data.is_valid == true)
+                                {
+                                    ret = true;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new Exception("Cannot verify access token. See inner exception.", ex);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) 
+            {
+                throw new Exception("Cannot verify access token. See inner exception.", ex);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Verifies whether provided access token was really issued for specified application and checks it againts provided e-mail.
+        /// </summary>
+        /// <param name="accessToken"></param>
+        /// <param name="email"></param>
+        /// <returns></returns>
+        /// <exception cref="System.Exception">Throws exception when dynamic data object does not contain app_id or is_valid attributes OR when downloaded user data does not contain email.</exception>
+        public bool VerifyAccessToken(string accessToken, string email) {
+            bool ret = false;
+
+            try
+            {
+                if (VerifyAccessToken(accessToken))
+                {
+                    IDictionary<string, string> data = GetUserData(accessToken);
+                    if (data != null)
+                    {
+                        ret = (data["email"] == email);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Cannot verify access token and e-mail. See inner exception.", ex);
+            }
+            
+            return ret;
         }
     }
 }
